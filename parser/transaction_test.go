@@ -1,6 +1,9 @@
 // Copyright (c) 2019-2020 The Zcash developers
+// Copyright (c) 2025 Juno Cash developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://www.opensource.org/licenses/mit-license.php .
+
+// Juno Cash: Orchard-only, no Sapling or Sprout support.
 package parser
 
 import (
@@ -74,6 +77,13 @@ func TestV5TransactionParser(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("txid %s", txtestdata.Txid)
+
+		// Juno Cash: Skip transactions with Sapling elements
+		if txtestdata.NSpendsSapling > 0 || txtestdata.NoutputsSapling > 0 {
+			t.Logf("Skipping transaction with Sapling elements (not supported in Juno Cash)")
+			continue
+		}
+
 		rawTxData, _ := hex.DecodeString(txtestdata.Tx)
 
 		tx := NewTransaction()
@@ -102,11 +112,9 @@ func TestV5TransactionParser(t *testing.T) {
 		if len(tx.transparentOutputs) != int(txtestdata.Tx_out_count) {
 			t.Fatal("tx_out_count miscompare")
 		}
-		if len(tx.shieldedSpends) != int(txtestdata.NSpendsSapling) {
-			t.Fatal("NSpendsSapling miscompare")
-		}
-		if len(tx.shieldedOutputs) != int(txtestdata.NoutputsSapling) {
-			t.Fatal("NOutputsSapling miscompare")
+		// Juno Cash: Sapling not supported, expect 0
+		if tx.SaplingOutputsCount() != 0 {
+			t.Fatal("Expected 0 Sapling outputs in Juno Cash")
 		}
 		if len(tx.orchardActions) != int(txtestdata.NActionsOrchard) {
 			t.Fatal("NActionsOrchard miscompare")
