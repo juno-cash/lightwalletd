@@ -1,41 +1,36 @@
-
-[![pipeline status](https://gitlab.com/zcash/lightwalletd/badges/master/pipeline.svg)](https://gitlab.com/zcash/lightwalletd/commits/master)
-[![codecov](https://codecov.io/gh/zcash/lightwalletd/branch/master/graph/badge.svg)](https://codecov.io/gh/zcash/lightwalletd)
+# Juno Cash Lightwalletd
 
 # Security Disclaimer
 
 lightwalletd is under active development, some features are more stable than
 others. The code has not been subjected to a thorough review by an external
-auditor, and recent code changes have not yet received security review from
-Electric Coin Company's security team.
-
-Developers should familiarize themselves with the [wallet app threat
-model](https://zcash.readthedocs.io/en/latest/rtd_pages/wallet_threat_model.html),
-since it contains important information about the security and privacy
-limitations of light wallets that use lightwalletd.
+auditor.
 
 ---
 
 # Overview
 
-[lightwalletd](https://github.com/zcash/lightwalletd) is a backend service that provides a bandwidth-efficient interface to the Zcash blockchain. Currently, lightwalletd supports the Sapling protocol version and beyond as its primary concern. The intended purpose of lightwalletd is to support the development and operation of mobile-friendly shielded light wallets.
+This is a fork of [lightwalletd](https://github.com/zcash/lightwalletd) adapted for Juno Cash, an Orchard-only fork of Zcash.
 
-lightwalletd is a backend service that provides a bandwidth-efficient interface to the Zcash blockchain for mobile and other wallets, such as [Zashi](https://github.com/Electric-Coin-Company/zashi-android) and [Ywallet](https://github.com/hhanh00/zwallet).
+**Key differences from upstream Zcash lightwalletd:**
+- **Orchard-only**: Only Orchard shielded transactions are supported
+- **No Sapling support**: Sapling fields in the API return empty/zero values
+- **No Sprout support**: Sprout was already removed from upstream
+- **Transparent transactions**: Only mining coinbase transactions are supported
 
-To view status of [CI pipeline](https://gitlab.com/zcash/lightwalletd/pipelines)
+lightwalletd is a backend service that provides a bandwidth-efficient interface to the Juno Cash blockchain for light wallets.
 
-To view detailed [Codecov](https://codecov.io/gh/zcash/lightwalletd) report
+Documentation for lightwalletd clients (the gRPC interface) is in `docs/rtd/index.html`. The current version of this file corresponds to the two `.proto` files; if you change these files, please regenerate the documentation by running `make doc`, which requires docker to be installed.
 
-Documentation for lightwalletd clients (the gRPC interface) is in `docs/rtd/index.html`. The current version of this file corresponds to the two `.proto` files; if you change these files, please regenerate the documentation by running `make doc`, which requires docker to be installed. 
 # Local/Developer docker-compose Usage
 
 [docs/docker-compose-setup.md](./docs/docker-compose-setup.md)
 
 # Local/Developer Usage
 
-## Zcashd
+## Jebrad
 
-You must start a local instance of `zcashd`, and its `.zcash/zcash.conf` file must include the following entries
+You must start a local instance of `jebrad`, and its `.juno/juno.conf` file must include the following entries
 (set the user and password strings accordingly):
 ```
 txindex=1
@@ -45,11 +40,11 @@ rpcuser=xxxxx
 rpcpassword=xxxxx
 ```
 
-The `zcashd` can be configured to run `mainnet` or `testnet` (or `regtest`). If you stop `zcashd` and restart it on a different network (switch from `testnet` to `mainnet`, for example), you must also stop and restart lightwalletd.
+`jebrad` can be configured to run `mainnet` or `testnet` (or `regtest`). If you stop `jebrad` and restart it on a different network (switch from `testnet` to `mainnet`, for example), you must also stop and restart lightwalletd.
 
-It's necessary to run `zcashd --reindex` one time for these options to take effect. This typically takes several hours, and requires more space in the `.zcash` data directory.
+It's necessary to run `jebrad --reindex` one time for these options to take effect. This typically takes several hours, and requires more space in the `.juno` data directory.
 
-Lightwalletd uses the following `zcashd` RPCs:
+Lightwalletd uses the following `jebrad` RPCs:
 - `getinfo`
 - `getblockchaininfo`
 - `getbestblockhash`
@@ -64,9 +59,9 @@ Lightwalletd uses the following `zcashd` RPCs:
 
 ## Lightwalletd
 
-First, install [Go](https://golang.org/dl/#stable) version 1.17 or later. You can see your current version by running `go version`.
+First, install [Go](https://golang.org/dl/#stable) version 1.24 or later. You can see your current version by running `go version`.
 
-Clone the [current repository](https://github.com/zcash/lightwalletd) into a local directory that is _not_ within any component of
+Clone this repository into a local directory that is _not_ within any component of
 your `$GOPATH` (`$HOME/go` by default), then build the lightwalletd server binary by running `make`.
 
 ## To run SERVER
@@ -74,14 +69,14 @@ your `$GOPATH` (`$HOME/go` by default), then build the lightwalletd server binar
 Assuming you used `make` to build the server, here's a typical developer invocation:
 
 ```
-./lightwalletd --no-tls-very-insecure --zcash-conf-path ~/.zcash/zcash.conf --data-dir . --log-file /dev/stdout
+./lightwalletd --no-tls-very-insecure --zcash-conf-path ~/.juno/juno.conf --data-dir . --log-file /dev/stdout
 ```
 Type `./lightwalletd help` to see the full list of options and arguments.
 
 # Production Usage
 
-Run a local instance of `zcashd` (see above), except do _not_ specify `--no-tls-very-insecure`.
-Ensure [Go](https://golang.org/dl/#stable) version 1.17 or later is installed.
+Run a local instance of `jebrad` (see above), except do _not_ specify `--no-tls-very-insecure`.
+Ensure [Go](https://golang.org/dl/#stable) version 1.24 or later is installed.
 
 **x509 Certificates**
 You will need to supply an x509 certificate that connecting clients will have good reason to trust (hint: do not use a self-signed one, our SDK will reject those unless you distribute them to the client out-of-band). We suggest that you be sure to buy a reputable one from a supplier that uses a modern hashing algorithm (NOT md5 or sha1) and that uses Certificate Transparency (OID 1.3.6.1.4.1.11129.2.4.2 will be present in the certificate).
@@ -112,13 +107,13 @@ certbot certonly --standalone --preferred-challenges http -d some.forward.dns.co
 Example using server binary built from Makefile:
 
 ```
-./lightwalletd --tls-cert cert.pem --tls-key key.pem --zcash-conf-path /home/zcash/.zcash/zcash.conf --log-file /logs/server.log
+./lightwalletd --tls-cert cert.pem --tls-key key.pem --zcash-conf-path /home/juno/.juno/juno.conf --log-file /logs/server.log
 ```
 
 ## Block cache
 
-lightwalletd caches all blocks from Sapling activation up to the
-most recent block, which takes about an hour the first time you run
+lightwalletd caches all blocks from Orchard activation up to the
+most recent block, which takes some time the first time you run
 lightwalletd. During this syncing, lightwalletd is fully available,
 but block fetches are slower until the download completes.
 
@@ -129,9 +124,9 @@ the `--data-dir` command-line option).
 
 lightwalletd checks the consistency of these files at startup and during
 operation as these files may be damaged by, for example, an unclean shutdown.
-If the server detects corruption, it will automatically re-downloading blocks
-from `zcashd` from that height, requiring up to an hour again (no manual
-intervention is required). But this should occur rarely.
+If the server detects corruption, it will automatically re-download blocks
+from `jebrad` from that height (no manual intervention is required).
+But this should occur rarely.
 
 If lightwalletd detects corruption in these cache files, it will log
 a message containing the string `CORRUPTION` and also indicate the

@@ -1,16 +1,18 @@
 # Definitions
 
-A **light wallet** is not a full participant in the network of Zcash peers. It can send and receive payments, but does not store or validate a copy of the blockchain.
+A **light wallet** is not a full participant in the network of Juno Cash peers. It can send and receive payments, but does not store or validate a copy of the blockchain.
 
-A **compact transaction** is a representation of a Zcash Sapling transaction that contains only the information necessary to detect that a given Sapling payment output is for you and to spend a note.
+A **compact transaction** is a representation of a Juno Cash Orchard transaction that contains only the information necessary to detect that a given Orchard payment output is for you and to spend a note.
 
 A **compact block** is a collection of compact transactions along with certain metadata (such as the block header) from their source block.
+
+> **Note:** Juno Cash is an Orchard-only fork of Zcash. Sapling and Sprout are not supported.
 
 # Architecture
 
 ```
 +----------+
-|  zcashd  |                       +----------+    +-------+
+|  jebrad  |                       +----------+    +-------+
 +----+-----+              +------->+ frontend +--->+       |
      |                    |        +----------+    |  L    +<----Client
      | raw blocks    +----+----+                   |  O B  |
@@ -27,9 +29,9 @@ A **compact block** is a collection of compact transactions along with certain m
 
 ## Ingester
 
-The ingester is the component responsible for transforming raw Zcash block data into a compact block.
+The ingester is the component responsible for transforming raw Juno Cash block data into a compact block.
 
-The ingester is a modular component. Anything that can retrieve the necessary data and put it into storage can fulfill this role. Currently, the only ingester available communicated to zcashd through RPCs and parses that raw block data. 
+The ingester is a modular component. Anything that can retrieve the necessary data and put it into storage can fulfill this role. Currently, the only ingester available communicates to jebrad through RPCs and parses that raw block data. 
 
 **How do I run it?**
 
@@ -42,31 +44,31 @@ First, install [Go >= 1.11](https://golang.org/dl/#stable). Older versions of Go
 Now clone this repo and start the ingester. The first run will start slow as Go builds the sqlite C interface:
 
 ```
-$ git clone https://github.com/zcash/lightwalletd
+$ git clone <repository-url>
 $ cd lightwalletd
-$ go run cmd/ingest/main.go --conf-file <path_to_zcash.conf> --db-path <path_to_sqllightdb>
+$ go run cmd/ingest/main.go --conf-file <path_to_juno.conf> --db-path <path_to_sqllightdb>
 ```
 
 To see the other command line options, run `go run cmd/ingest/main.go --help`.
 
 ## Frontend
 
-The frontend is the component that talks to clients. 
+The frontend is the component that talks to clients.
 
-It exposes an API that allows a client to query for current blockheight, request ranges of compact block data, request specific transaction details, and send new Zcash transactions.
+It exposes an API that allows a client to query for current blockheight, request ranges of compact block data, request specific transaction details, and send new Juno Cash transactions.
 
-The API is specified in [Protocol Buffers](https://developers.google.com/protocol-buffers/) and implemented using [gRPC](https://grpc.io). You can find the exact details in [these files](https://github.com/zcash/lightwalletd/tree/master/walletrpc).
+The API is specified in [Protocol Buffers](https://developers.google.com/protocol-buffers/) and implemented using [gRPC](https://grpc.io). You can find the exact details in the `walletrpc` directory.
 
 **How do I run it?**
 
 ⚠️ This section literally describes how to execute the binaries from source code. This is suitable only for testing, not production deployment. See section Production for cleaner instructions.
 
-First, install [Go >= 1.11](https://golang.org/dl/#stable). Older versions of Go may work but are not actively supported at this time. Note that the version of Go packaged by Debian stable (or anything prior to Buster) is far too old to work.
+First, install [Go >= 1.24](https://golang.org/dl/#stable). Older versions of Go may work but are not actively supported at this time. Note that the version of Go packaged by Debian stable may be too old to work.
 
 Now clone this repo and start the frontend. The first run will start slow as Go builds the sqlite C interface:
 
 ```
-$ git clone https://github.com/zcash/lightwalletd
+$ git clone <repository-url>
 $ cd lightwalletd
 $ go run cmd/server/main.go --db-path <path to the same sqlite db> --bind-addr 0.0.0.0:9067
 ```
@@ -79,7 +81,7 @@ x509 Certificates! This software relies on the confidentiality and integrity of 
 
 Otherwise, not much! This is a very simple piece of software. Make sure you point it at the same storage as the ingester. See the "Production" section for some caveats.
 
-Support for users sending transactions will require the ability to make JSON-RPC calls to a zcashd instance. By default the frontend tries to pull RPC credentials from your zcashd.conf file, but you can specify other credentials via command line flag. In the future, it should be possible to do this with environment variables [(#2)](https://github.com/zcash/lightwalletd/issues/2).
+Support for users sending transactions will require the ability to make JSON-RPC calls to a jebrad instance. By default the frontend tries to pull RPC credentials from your juno.conf file, but you can specify other credentials via command line flag.
 
 ## Storage
 

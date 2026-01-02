@@ -1,10 +1,12 @@
 # Intro to darksidewalletd
 
 Darksidewalletd is a feature included in lightwalletd, enabled by the
-`--darkside-very-insecure` flag, which can serve arbitrary blocks to a Zcash
+`--darkside-very-insecure` flag, which can serve arbitrary blocks to a Juno Cash
 light client wallet. This is useful for security and reorg testing. It includes
-a minimally-functional mock zcashd which comes with a gRPC API for controlling
+a minimally-functional mock jebrad which comes with a gRPC API for controlling
 which blocks it will serve.
+
+> **Note:** For Juno Cash (Orchard-only), Sapling-related fields will always be empty/zero.
 
 This means that you can use darksidewalletd to control the blocks and
 transactions that are exposed to any light wallets that connect, to see how
@@ -23,11 +25,11 @@ system download questionable material, perform attacks on other systems,
 etc.). The maximum 30-minute run time limit built into darksidewalletd
 mitigates these risks, but users should still be cautious.
 
-## Dependencies 
+## Dependencies
 
-Lightwalletd and most dependencies of lightwalletd, including Go version 1.11 or
-later, but not zcashd. Since Darksidewalletd mocks zcashd, it can run standalone
-and does not use zcashd to get blocks or send and receive transactions.
+Lightwalletd and most dependencies of lightwalletd, including Go version 1.24 or
+later, but not jebrad. Since Darksidewalletd mocks jebrad, it can run standalone
+and does not use jebrad to get blocks or send and receive transactions.
 
 For the tutorial the `grpcurl` tool is needed to call the `darksidewalletd`
 gRPC API.
@@ -41,22 +43,22 @@ of the blocks (beyond checking the blocks’ prevhashes, which is used to
 detect reorgs). That means the blocks we give darksidewalletd don’t need to
 be fully valid, see table:
 
-Block component|Must be valid|Must be partially valid|Not checked for validity 
+Block component|Must be valid|Must be partially valid|Not checked for validity
 :-----|:-----|:-----|:-----
-nVersion|x| | 
-hashPrevBlock|x| | 
-hashMerkleRoot| | |x 
-hashFinalSaplingRoot| | |x 
-nTime| | |x 
-nBits| | |x 
-nNonce| | |x 
-Equihash solution| | |x 
-Transaction Data*| |x|  
+nVersion|x| |
+hashPrevBlock|x| |
+hashMerkleRoot| | |x
+hashFinalOrchardRoot| | |x
+nTime| | |x
+nBits| | |x
+nNonce| | |x
+RandomX solution| | |x
+Transaction Data*| |x|
 
-\*Transactions in blocks must conform to the transaction format, but not need
+\*Transactions in blocks must conform to the transaction format, but do not need
 valid zero-knowledge proofs etc.
 
-For more information about block headers, see the Zcash protocol specification.
+For more information about block headers, see the Juno Cash protocol specification.
 
 Lightwalletd provides us with a gRPC API for generating these
 minimally-acceptable fake blocks. The API allows us to "stage" blocks and
@@ -96,7 +98,7 @@ it, which makes the reorg happen.
 
 Here's a quick-start guide to simulating a reorg:
 ```
-grpcurl -plaintext -d '{"saplingActivation": 663150,"branchID": "bad", "chainName":"x"}' localhost:9067 cash.z.wallet.sdk.rpc.DarksideStreamer/Reset
+grpcurl -plaintext -d '{"orchardActivation": 663150,"branchID": "bad", "chainName":"x"}' localhost:9067 cash.z.wallet.sdk.rpc.DarksideStreamer/Reset
 grpcurl -plaintext -d '{"url": "https://raw.githubusercontent.com/zcash-hackworks/darksidewalletd-test-data/master/basic-reorg/663150.txt"}' localhost:9067 cash.z.wallet.sdk.rpc.DarksideStreamer/StageBlocks
 grpcurl -plaintext -d '{"height":663151,"count":10}' localhost:9067 cash.z.wallet.sdk.rpc.DarksideStreamer/StageBlocksCreate
 grpcurl -plaintext -d '{"height":663160}' localhost:9067 cash.z.wallet.sdk.rpc.DarksideStreamer/ApplyStaged
@@ -112,11 +114,11 @@ If you haven't already started darksidewalletd, please start it:
 ./lightwalletd --darkside-very-insecure --no-tls-very-insecure --data-dir . --log-file /dev/stdout
 ```
 
-First, we need to reset darksidewalletd, specifying the sapling activation
+First, we need to reset darksidewalletd, specifying the Orchard activation
 height, branch ID, and chain name that will be told to wallets when they ask:
 
 ```
-grpcurl -plaintext -d '{"saplingActivation": 663150,"branchID": "bad", "chainName":"x"}' localhost:9067 cash.z.wallet.sdk.rpc.DarksideStreamer/Reset
+grpcurl -plaintext -d '{"orchardActivation": 663150,"branchID": "bad", "chainName":"x"}' localhost:9067 cash.z.wallet.sdk.rpc.DarksideStreamer/Reset
 ```
 
 Next, we will stage the real mainnet block 663150. In ECC's example wallets, this block is used as a checkpoint so we need to use the real block to pass that check.
@@ -354,7 +356,7 @@ copying the “tx_hex” field.
 The `GetMempoolTx` gRPC will return staged transactions that are either within
 staged blocks or that have been staged separately. Here is an example:
 ```
-grpcurl -plaintext -d '{"saplingActivation": 663150,"branchID": "bad", "chainName":"x"}' localhost:9067 cash.z.wallet.sdk.rpc.DarksideStreamer/Reset
+grpcurl -plaintext -d '{"orchardActivation": 663150,"branchID": "bad", "chainName":"x"}' localhost:9067 cash.z.wallet.sdk.rpc.DarksideStreamer/Reset
 grpcurl -plaintext -d '{"url": "https://raw.githubusercontent.com/zcash-hackworks/darksidewalletd-test-data/master/tx-incoming/blocks.txt"}' localhost:9067 cash.z.wallet.sdk.rpc.DarksideStreamer/StageBlocks
 grpcurl -plaintext -d '{"txid":["qg=="]}' localhost:9067 cash.z.wallet.sdk.rpc.CompactTxStreamer/GetMempoolTx
 ```
