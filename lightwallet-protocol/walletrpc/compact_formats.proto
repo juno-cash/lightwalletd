@@ -1,4 +1,5 @@
 // Copyright (c) 2019-2021 The Zcash developers
+// Copyright (c) 2025 Juno Cash developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
@@ -11,8 +12,9 @@ option swift_prefix = "";
 // value.
 
 // Information about the state of the chain as of a given block.
+// Juno Cash: saplingCommitmentTreeSize is always 0 (Sapling not supported).
 message ChainMetadata {
-    uint32 saplingCommitmentTreeSize = 1; // the size of the Sapling note commitment tree as of the end of this block
+    uint32 saplingCommitmentTreeSize = 1; // Always 0 for Juno Cash (Sapling not supported)
     uint32 orchardCommitmentTreeSize = 2; // the size of the Orchard note commitment tree as of the end of this block
 }
 
@@ -34,12 +36,13 @@ message CompactBlock {
     ChainMetadata chainMetadata = 8; // information about the state of the chain as of this block
 }
 
-// A compact representation of a Zcash transaction.
+// A compact representation of a Juno Cash transaction.
 //
 // CompactTx contains the minimum information for a wallet to know if this transaction
 // is relevant to it (either pays to it or spends from it) via shielded elements. Additionally,
 // it can optionally include the minimum necessary data to detect payments to transparent addresses
-// related to your wallet.
+// related to your wallet (for coinbase/mining only in Juno Cash).
+// Juno Cash: spends and outputs (Sapling) are always empty.
 message CompactTx {
     // The index of the transaction within the block.
     uint64 index = 1;
@@ -58,8 +61,8 @@ message CompactTx {
     //    valueBalanceSapling + valueBalanceOrchard + sum(vPubNew) - sum(vPubOld) - sum(tOut)
     uint32 fee = 3;
 
-    repeated CompactSaplingSpend spends = 4;
-    repeated CompactSaplingOutput outputs = 5;
+    repeated CompactSaplingSpend spends = 4;   // Always empty for Juno Cash (Sapling not supported)
+    repeated CompactSaplingOutput outputs = 5; // Always empty for Juno Cash (Sapling not supported)
     repeated CompactOrchardAction actions = 6;
 
     // `CompactTxIn` values corresponding to the `vin` entries of the full transaction.
@@ -98,18 +101,14 @@ message TxOut {
     bytes scriptPubKey = 2;
 }
 
-// A compact representation of a [Sapling Spend](https://zips.z.cash/protocol/protocol.pdf#spendencodingandconsensus).
-//
-// CompactSaplingSpend is a Sapling Spend Description as described in 7.3 of the Zcash
-// protocol specification.
+// UNUSED in Juno Cash (Sapling not supported). Kept for API compatibility.
+// A compact representation of a Sapling Spend Description.
 message CompactSaplingSpend {
-    bytes nf = 1;   // Nullifier (see the Zcash protocol specification)
+    bytes nf = 1;   // Nullifier
 }
 
-// A compact representation of a [Sapling Output](https://zips.z.cash/protocol/protocol.pdf#outputencodingandconsensus).
-//
-// It encodes the `cmu` field, `ephemeralKey` field, and a 52-byte prefix of the
-// `encCiphertext` field of a Sapling Output Description. Total size is 116 bytes.
+// UNUSED in Juno Cash (Sapling not supported). Kept for API compatibility.
+// A compact representation of a Sapling Output Description.
 message CompactSaplingOutput {
     bytes cmu = 1;          // Note commitment u-coordinate.
     bytes ephemeralKey = 2; // Ephemeral public key.

@@ -1,7 +1,9 @@
 // Copyright (c) 2019-2020 The Zcash developers
+// Copyright (c) 2025 Juno Cash developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
+// Juno Cash: Orchard-only, no Sapling or Sprout support.
 package common
 
 import (
@@ -275,10 +277,10 @@ func GetLightdInfo() (*walletrpc.LightdInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	// If the sapling consensus branch doesn't exist, it must be regtest
-	var saplingHeight int
-	if saplingJSON, ok := getblockchaininfoReply.Upgrades["76b809bb"]; ok { // Sapling ID
-		saplingHeight = saplingJSON.ActivationHeight
+	// Juno Cash: Use Orchard activation height (Sapling not supported)
+	var orchardHeight int
+	if orchardJSON, ok := getblockchaininfoReply.Upgrades["c2d6d0b4"]; ok { // NU5/Orchard ID
+		orchardHeight = orchardJSON.ActivationHeight
 	}
 
 	// Find the name and activation height of the next pending network upgrade,
@@ -290,16 +292,16 @@ func GetLightdInfo() (*walletrpc.LightdInfo, error) {
 		}
 	}
 
-	vendor := "ECC LightWalletD"
+	vendor := "Juno Cash LightWalletD"
 	if DarksideEnabled {
-		vendor = "ECC DarksideWalletD"
+		vendor = "Juno Cash DarksideWalletD"
 	}
 	return &walletrpc.LightdInfo{
 		Version:                 Version,
 		Vendor:                  vendor,
-		TaddrSupport:            true,
+		TaddrSupport:            true, // Deprecated: only for coinbase/mining
 		ChainName:               getblockchaininfoReply.Chain,
-		SaplingActivationHeight: uint64(saplingHeight),
+		SaplingActivationHeight: uint64(orchardHeight), // Juno Cash: Orchard height (field name kept for API compat)
 		ConsensusBranchId:       getblockchaininfoReply.Consensus.Chaintip,
 		BlockHeight:             uint64(getblockchaininfoReply.Blocks),
 		GitCommit:               GitCommit,
@@ -393,7 +395,7 @@ func getBlockFromRPC(height int) (*walletrpc.CompactBlock, error) {
 		t.SetTxID(hash32.Reverse(txidBigEndian))
 	}
 	r := block.ToCompact()
-	r.ChainMetadata.SaplingCommitmentTreeSize = block1.Trees.Sapling.Size
+	r.ChainMetadata.SaplingCommitmentTreeSize = 0 // Juno Cash: Sapling not supported
 	r.ChainMetadata.OrchardCommitmentTreeSize = block1.Trees.Orchard.Size
 	return r, nil
 }
@@ -479,7 +481,7 @@ func BlockIngestor(c *BlockCache, rep int) {
 		}
 		if height == c.GetFirstHeight() {
 			c.Sync()
-			Log.Info("Waiting for "+NodeName+" height to reach Sapling activation height ",
+			Log.Info("Waiting for "+NodeName+" height to reach Orchard activation height ",
 				"(", c.GetFirstHeight(), ")...")
 			Time.Sleep(120 * time.Second)
 			continue

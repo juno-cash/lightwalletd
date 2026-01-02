@@ -1,3 +1,8 @@
+// Copyright (c) 2019-2020 The Zcash developers
+// Copyright (c) 2025 Juno Cash developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or https://www.opensource.org/licenses/mit-license.php .
+
 package cmd
 
 import (
@@ -34,9 +39,9 @@ var logger = logrus.New()
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "lightwalletd",
-	Short: "Lightwalletd is a backend service to the Zcash blockchain",
-	Long: `Lightwalletd is a backend service that provides a 
-         bandwidth-efficient interface to the Zcash blockchain`,
+	Short: "Lightwalletd is a backend service to the Juno Cash blockchain",
+	Long: `Lightwalletd is a backend service that provides a
+         bandwidth-efficient interface to the Juno Cash blockchain`,
 	Run: func(cmd *cobra.Command, args []string) {
 		opts := &common.Options{
 			GRPCBindAddr:        viper.GetString("grpc-bind-addr"),
@@ -179,11 +184,11 @@ func startServer(opts *common.Options) error {
 		reflection.Register(server)
 	}
 
-	// Initialize Zcash RPC client. Right now (Jan 2018) this is only for
+	// Initialize Juno Cash RPC client. Right now this is only for
 	// sending transactions, but in the future it could back a different type
 	// of block streamer.
 
-	var saplingHeight int
+	var orchardHeight int
 	var chainName string
 	var rpcClient *rpcclient.Client
 	var err error
@@ -198,7 +203,7 @@ func startServer(opts *common.Options) error {
 		if err != nil {
 			common.Log.WithFields(logrus.Fields{
 				"error": err,
-			}).Fatal("setting up RPC connection to zebrad or zcashd")
+			}).Fatal("setting up RPC connection to jebrad")
 		}
 		// Indirect function for test mocking (so unit tests can talk to stub functions).
 		common.RawRequest = rpcClient.RawRequest
@@ -210,13 +215,13 @@ func startServer(opts *common.Options) error {
 		if err != nil {
 			common.Log.WithFields(logrus.Fields{
 				"error": err,
-			}).Fatal("getting initial information from zebrad or zcashd")
+			}).Fatal("getting initial information from jebrad")
 		}
-		common.Log.Info("Got sapling height ", getLightdInfo.SaplingActivationHeight,
+		common.Log.Info("Got orchard height ", getLightdInfo.SaplingActivationHeight,
 			" block height ", getLightdInfo.BlockHeight,
 			" chain ", getLightdInfo.ChainName,
 			" branchID ", getLightdInfo.ConsensusBranchId)
-		saplingHeight = int(getLightdInfo.SaplingActivationHeight)
+		orchardHeight = int(getLightdInfo.SaplingActivationHeight)
 		chainName = getLightdInfo.ChainName
 		if strings.Contains(getLightdInfo.ZcashdSubversion, "MagicBean") {
 			// The default is zebrad
@@ -255,7 +260,7 @@ func startServer(opts *common.Options) error {
 		if opts.Redownload {
 			syncFromHeight = 0
 		}
-		cache = common.NewBlockCache(dbPath, chainName, saplingHeight, syncFromHeight)
+		cache = common.NewBlockCache(dbPath, chainName, orchardHeight, syncFromHeight)
 	}
 	if !opts.Darkside {
 		if !opts.NoCache {
@@ -338,21 +343,21 @@ func init() {
 	rootCmd.Flags().String("tls-key", "./cert.key", "the path to a TLS key file")
 	rootCmd.Flags().Int("log-level", int(logrus.InfoLevel), "log level (logrus 1-7)")
 	rootCmd.Flags().String("log-file", "./server.log", "log file to write to")
-	rootCmd.Flags().String("zcash-conf-path", "./zcash.conf", "conf file to pull RPC creds from")
+	rootCmd.Flags().String("zcash-conf-path", "./juno.conf", "conf file to pull RPC creds from")
 	rootCmd.Flags().String("rpcuser", "", "RPC user name")
 	rootCmd.Flags().String("rpcpassword", "", "RPC password")
 	rootCmd.Flags().String("rpchost", "", "RPC host")
 	rootCmd.Flags().String("rpcport", "", "RPC host port")
 	rootCmd.Flags().Bool("no-tls-very-insecure", false, "run without the required TLS certificate, only for debugging, DO NOT use in production")
 	rootCmd.Flags().Bool("gen-cert-very-insecure", false, "run with self-signed TLS certificate, only for debugging, DO NOT use in production")
-	rootCmd.Flags().Bool("redownload", false, "re-fetch all blocks from zebrad or zcashd; reinitialize local cache files")
+	rootCmd.Flags().Bool("redownload", false, "re-fetch all blocks from jebrad; reinitialize local cache files")
 	rootCmd.Flags().Bool("nocache", false, "don't maintain a compact blocks disk cache (to reduce storage)")
-	rootCmd.Flags().Int("sync-from-height", -1, "re-fetch blocks from zebrad or zcashd, starting at this height")
+	rootCmd.Flags().Int("sync-from-height", -1, "re-fetch blocks from jebrad, starting at this height")
 	rootCmd.Flags().String("data-dir", "/var/lib/lightwalletd", "data directory (such as db)")
 	rootCmd.Flags().Bool("ping-very-insecure", false, "allow Ping GRPC for testing")
-	rootCmd.Flags().Bool("darkside-very-insecure", false, "run with GRPC-controllable mock zebrad for integration testing (shuts down after 30 minutes)")
+	rootCmd.Flags().Bool("darkside-very-insecure", false, "run with GRPC-controllable mock jebrad for integration testing (shuts down after 30 minutes)")
 	rootCmd.Flags().Int("darkside-timeout", 30, "override 30 minute default darkside timeout")
-	rootCmd.Flags().String("donation-address", "", "Zcash UA address to accept donations for operating this server")
+	rootCmd.Flags().String("donation-address", "", "Juno Cash UA address to accept donations for operating this server")
 
 	viper.BindPFlag("grpc-bind-addr", rootCmd.Flags().Lookup("grpc-bind-addr"))
 	viper.SetDefault("grpc-bind-addr", "127.0.0.1:9067")
@@ -369,7 +374,7 @@ func init() {
 	viper.BindPFlag("log-file", rootCmd.Flags().Lookup("log-file"))
 	viper.SetDefault("log-file", "./server.log")
 	viper.BindPFlag("zcash-conf-path", rootCmd.Flags().Lookup("zcash-conf-path"))
-	viper.SetDefault("zcash-conf-path", "./zcash.conf")
+	viper.SetDefault("zcash-conf-path", "./juno.conf")
 	viper.BindPFlag("rpcuser", rootCmd.Flags().Lookup("rpcuser"))
 	viper.BindPFlag("rpcpassword", rootCmd.Flags().Lookup("rpcpassword"))
 	viper.BindPFlag("rpchost", rootCmd.Flags().Lookup("rpchost"))
@@ -442,7 +447,7 @@ func initConfig() {
 
 	if common.DonationAddress != "" {
 		if !strings.HasPrefix(common.DonationAddress, "u") {
-			common.Log.Fatal("donation-address must be a Zcash UA address, generate it with a recent wallet")
+			common.Log.Fatal("donation-address must be a Juno Cash UA address, generate it with a recent wallet")
 		}
 		if len(common.DonationAddress) > 255 {
 			common.Log.Fatal("donation-address must be less than 256 characters")

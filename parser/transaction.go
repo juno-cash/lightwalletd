@@ -1,8 +1,10 @@
 // Copyright (c) 2019-2020 The Zcash developers
+// Copyright (c) 2025 Juno Cash developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-// Package parser deserializes (full) transactions (zcashd).
+// Package parser deserializes (full) transactions.
+// Juno Cash: Orchard-only, no Sapling or Sprout support.
 package parser
 
 import (
@@ -21,15 +23,7 @@ type rawTransaction struct {
 	consensusBranchID  uint32
 	transparentInputs  []txIn
 	transparentOutputs []txOut
-	//nLockTime           uint32
-	//nExpiryHeight       uint32
-	//valueBalanceSapling int64
-	shieldedSpends  []spend
-	shieldedOutputs []output
-	joinSplits      []joinSplit
-	//joinSplitPubKey     []byte
-	//joinSplitSig        []byte
-	//bindingSigSapling   []byte
+	// Juno Cash: Orchard-only, no Sapling or Sprout support
 	orchardActions []action
 }
 
@@ -125,171 +119,7 @@ func (tx *Transaction) ParseTransparent(data []byte) ([]byte, error) {
 	return []byte(s), nil
 }
 
-// spend is a Sapling Spend Description as described in 7.3 of the Zcash
-// protocol specification.
-type spend struct {
-	//cv           []byte // 32
-	//anchor       []byte // 32
-	nullifier []byte // 32
-	//rk           []byte // 32
-	//zkproof      []byte // 192
-	//spendAuthSig []byte // 64
-}
-
-func (p *spend) ParseFromSlice(data []byte, version uint32) ([]byte, error) {
-	s := bytestring.String(data)
-
-	if !s.Skip(32) {
-		return nil, errors.New("could not skip cv")
-	}
-
-	if version <= 4 && !s.Skip(32) {
-		return nil, errors.New("could not skip anchor")
-	}
-
-	if !s.ReadBytes(&p.nullifier, 32) {
-		return nil, errors.New("could not read nullifier")
-	}
-
-	if !s.Skip(32) {
-		return nil, errors.New("could not skip rk")
-	}
-
-	if version <= 4 && !s.Skip(192) {
-		return nil, errors.New("could not skip zkproof")
-	}
-
-	if version <= 4 && !s.Skip(64) {
-		return nil, errors.New("could not skip spendAuthSig")
-	}
-
-	return []byte(s), nil
-}
-
-func (p *spend) ToCompact() *walletrpc.CompactSaplingSpend {
-	return &walletrpc.CompactSaplingSpend{
-		Nf: p.nullifier,
-	}
-}
-
-// output is a Sapling Output Description as described in section 7.4 of the
-// Zcash protocol spec.
-type output struct {
-	//cv            []byte // 32
-	cmu           []byte // 32
-	ephemeralKey  []byte // 32
-	encCiphertext []byte // 580
-	//outCiphertext []byte // 80
-	//zkproof       []byte // 192
-}
-
-func (p *output) ParseFromSlice(data []byte, version uint32) ([]byte, error) {
-	s := bytestring.String(data)
-
-	if !s.Skip(32) {
-		return nil, errors.New("could not skip cv")
-	}
-
-	if !s.ReadBytes(&p.cmu, 32) {
-		return nil, errors.New("could not read cmu")
-	}
-
-	if !s.ReadBytes(&p.ephemeralKey, 32) {
-		return nil, errors.New("could not read ephemeralKey")
-	}
-
-	if !s.ReadBytes(&p.encCiphertext, 580) {
-		return nil, errors.New("could not read encCiphertext")
-	}
-
-	if !s.Skip(80) {
-		return nil, errors.New("could not skip outCiphertext")
-	}
-
-	if version <= 4 && !s.Skip(192) {
-		return nil, errors.New("could not skip zkproof")
-	}
-
-	return []byte(s), nil
-}
-
-func (p *output) ToCompact() *walletrpc.CompactSaplingOutput {
-	return &walletrpc.CompactSaplingOutput{
-		Cmu:          p.cmu,
-		EphemeralKey: p.ephemeralKey,
-		Ciphertext:   p.encCiphertext[:52],
-	}
-}
-
-// joinSplit is a JoinSplit description as described in 7.2 of the Zcash
-// protocol spec. Its exact contents differ by transaction version and network
-// upgrade level. Only version 4 is supported, no need for proofPHGR13.
-type joinSplit struct {
-	//vpubOld        uint64
-	//vpubNew        uint64
-	//anchor         []byte    // 32
-	//nullifiers     [2][]byte // 64 [N_old][32]byte
-	//commitments    [2][]byte // 64 [N_new][32]byte
-	//ephemeralKey   []byte    // 32
-	//randomSeed     []byte    // 32
-	//vmacs          [2][]byte // 64 [N_old][32]byte
-	//proofGroth16   []byte    // 192 (version 4 only)
-	//encCiphertexts [2][]byte // 1202 [N_new][601]byte
-}
-
-func (p *joinSplit) ParseFromSlice(data []byte) ([]byte, error) {
-	s := bytestring.String(data)
-
-	if !s.Skip(8) {
-		return nil, errors.New("could not skip vpubOld")
-	}
-
-	if !s.Skip(8) {
-		return nil, errors.New("could not skip vpubNew")
-	}
-
-	if !s.Skip(32) {
-		return nil, errors.New("could not skip anchor")
-	}
-
-	for i := 0; i < 2; i++ {
-		if !s.Skip(32) {
-			return nil, errors.New("could not skip a nullifier")
-		}
-	}
-
-	for i := 0; i < 2; i++ {
-		if !s.Skip(32) {
-			return nil, errors.New("could not skip a commitment")
-		}
-	}
-
-	if !s.Skip(32) {
-		return nil, errors.New("could not skip ephemeralKey")
-	}
-
-	if !s.Skip(32) {
-		return nil, errors.New("could not skip randomSeed")
-	}
-
-	for i := 0; i < 2; i++ {
-		if !s.Skip(32) {
-			return nil, errors.New("could not skip a vmac")
-		}
-	}
-
-	if !s.Skip(192) {
-		return nil, errors.New("could not skip Groth16 proof")
-	}
-
-	for i := 0; i < 2; i++ {
-		if !s.Skip(601) {
-			return nil, errors.New("could not skip an encCiphertext")
-		}
-	}
-
-	return []byte(s), nil
-}
+// Juno Cash: Sapling spend/output and JoinSplit types removed (Orchard-only)
 
 type action struct {
 	//cv            []byte // 32
@@ -363,15 +193,16 @@ func (tx *Transaction) Bytes() []byte {
 }
 
 // HasShieldedElements indicates whether a transaction has
-// at least one shielded input or output.
+// at least one shielded (Orchard) input or output.
+// Juno Cash: Only Orchard is supported.
 func (tx *Transaction) HasShieldedElements() bool {
-	nshielded := len(tx.shieldedSpends) + len(tx.shieldedOutputs) + len(tx.orchardActions)
-	return tx.version >= 4 && nshielded > 0
+	return tx.version >= 5 && len(tx.orchardActions) > 0
 }
 
 // SaplingOutputsCount returns the number of Sapling outputs in the transaction.
+// Juno Cash: Always returns 0 (Sapling not supported).
 func (tx *Transaction) SaplingOutputsCount() int {
-	return len(tx.shieldedOutputs)
+	return 0
 }
 
 // OrchardActionsCount returns the number of Orchard actions in the transaction.
@@ -380,20 +211,13 @@ func (tx *Transaction) OrchardActionsCount() int {
 }
 
 // ToCompact converts the given (full) transaction to compact format.
+// Juno Cash: Only Orchard actions are populated (no Sapling).
 func (tx *Transaction) ToCompact(index int) *walletrpc.CompactTx {
 	ctx := &walletrpc.CompactTx{
-		Index: uint64(index), // index is contextual
-		Txid:  hash32.ToSlice(tx.GetEncodableHash()),
-		//Fee:     0, // TODO: calculate fees
-		Spends:  make([]*walletrpc.CompactSaplingSpend, len(tx.shieldedSpends)),
-		Outputs: make([]*walletrpc.CompactSaplingOutput, len(tx.shieldedOutputs)),
+		Index:   uint64(index), // index is contextual
+		Txid:    hash32.ToSlice(tx.GetEncodableHash()),
 		Actions: make([]*walletrpc.CompactOrchardAction, len(tx.orchardActions)),
-	}
-	for i, spend := range tx.shieldedSpends {
-		ctx.Spends[i] = spend.ToCompact()
-	}
-	for i, output := range tx.shieldedOutputs {
-		ctx.Outputs[i] = output.ToCompact()
+		// Juno Cash: Spends and Outputs (Sapling) are always empty
 	}
 	for i, a := range tx.orchardActions {
 		ctx.Actions[i] = a.ToCompact()
@@ -402,6 +226,8 @@ func (tx *Transaction) ToCompact(index int) *walletrpc.CompactTx {
 }
 
 // parse version 4 transaction data after the nVersionGroupId field.
+// Juno Cash: V4 transactions are only allowed for coinbase (transparent-only).
+// Sapling and JoinSplit data must be empty.
 func (tx *Transaction) parseV4(data []byte) ([]byte, error) {
 	s := bytestring.String(data)
 	var err error
@@ -428,55 +254,30 @@ func (tx *Transaction) parseV4(data []byte) ([]byte, error) {
 	if !s.ReadCompactSize(&spendCount) {
 		return nil, errors.New("could not read nShieldedSpend")
 	}
-	tx.shieldedSpends = make([]spend, spendCount)
-	for i := 0; i < spendCount; i++ {
-		newSpend := &tx.shieldedSpends[i]
-		s, err = newSpend.ParseFromSlice([]byte(s), 4)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing shielded Spend: %w", err)
-		}
+	// Juno Cash: Sapling spends not allowed
+	if spendCount > 0 {
+		return nil, errors.New("Juno Cash: Sapling spends not supported")
 	}
 	if !s.ReadCompactSize(&outputCount) {
 		return nil, errors.New("could not read nShieldedOutput")
 	}
-	tx.shieldedOutputs = make([]output, outputCount)
-	for i := 0; i < outputCount; i++ {
-		newOutput := &tx.shieldedOutputs[i]
-		s, err = newOutput.ParseFromSlice([]byte(s), 4)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing shielded Output: %w", err)
-		}
+	// Juno Cash: Sapling outputs not allowed
+	if outputCount > 0 {
+		return nil, errors.New("Juno Cash: Sapling outputs not supported")
 	}
 	var joinSplitCount int
 	if !s.ReadCompactSize(&joinSplitCount) {
 		return nil, errors.New("could not read nJoinSplit")
 	}
-
-	tx.joinSplits = make([]joinSplit, joinSplitCount)
+	// Juno Cash: JoinSplits (Sprout) not allowed
 	if joinSplitCount > 0 {
-		for i := 0; i < joinSplitCount; i++ {
-			js := &tx.joinSplits[i]
-			s, err = js.ParseFromSlice([]byte(s))
-			if err != nil {
-				return nil, fmt.Errorf("error parsing JoinSplit: %w", err)
-			}
-		}
-
-		if !s.Skip(32) {
-			return nil, errors.New("could not skip joinSplitPubKey")
-		}
-
-		if !s.Skip(64) {
-			return nil, errors.New("could not skip joinSplitSig")
-		}
-	}
-	if spendCount+outputCount > 0 && !s.Skip(64) {
-		return nil, errors.New("could not skip bindingSigSapling")
+		return nil, errors.New("Juno Cash: JoinSplits (Sprout) not supported")
 	}
 	return s, nil
 }
 
 // parse version 5 transaction data after the nVersionGroupId field.
+// Juno Cash: Only Orchard is supported. Sapling data must be empty.
 func (tx *Transaction) parseV5(data []byte) ([]byte, error) {
 	s := bytestring.String(data)
 	var err error
@@ -501,49 +302,19 @@ func (tx *Transaction) parseV5(data []byte) ([]byte, error) {
 	if !s.ReadCompactSize(&spendCount) {
 		return nil, errors.New("could not read nShieldedSpend")
 	}
-	if spendCount >= (1 << 16) {
-		return nil, errors.New(fmt.Sprintf("spentCount (%d) must be less than 2^16", spendCount))
-	}
-	tx.shieldedSpends = make([]spend, spendCount)
-	for i := 0; i < spendCount; i++ {
-		newSpend := &tx.shieldedSpends[i]
-		s, err = newSpend.ParseFromSlice([]byte(s), tx.version)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing shielded Spend: %w", err)
-		}
+	// Juno Cash: Sapling spends not allowed
+	if spendCount > 0 {
+		return nil, errors.New("Juno Cash: Sapling spends not supported")
 	}
 	if !s.ReadCompactSize(&outputCount) {
 		return nil, errors.New("could not read nShieldedOutput")
 	}
-	if outputCount >= (1 << 16) {
-		return nil, errors.New(fmt.Sprintf("outputCount (%d) must be less than 2^16", outputCount))
+	// Juno Cash: Sapling outputs not allowed
+	if outputCount > 0 {
+		return nil, errors.New("Juno Cash: Sapling outputs not supported")
 	}
-	tx.shieldedOutputs = make([]output, outputCount)
-	for i := 0; i < outputCount; i++ {
-		newOutput := &tx.shieldedOutputs[i]
-		s, err = newOutput.ParseFromSlice([]byte(s), tx.version)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing shielded Output: %w", err)
-		}
-	}
-	if spendCount+outputCount > 0 && !s.Skip(8) {
-		return nil, errors.New("could not read valueBalance")
-	}
-	if spendCount > 0 && !s.Skip(32) {
-		return nil, errors.New("could not skip anchorSapling")
-	}
-	if !s.Skip(192 * spendCount) {
-		return nil, errors.New("could not skip vSpendProofsSapling")
-	}
-	if !s.Skip(64 * spendCount) {
-		return nil, errors.New("could not skip vSpendAuthSigsSapling")
-	}
-	if !s.Skip(192 * outputCount) {
-		return nil, errors.New("could not skip vOutputProofsSapling")
-	}
-	if spendCount+outputCount > 0 && !s.Skip(64) {
-		return nil, errors.New("could not skip bindingSigSapling")
-	}
+
+	// Parse Orchard actions
 	var actionsCount int
 	if !s.ReadCompactSize(&actionsCount) {
 		return nil, errors.New("could not read nActionsOrchard")

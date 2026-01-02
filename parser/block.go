@@ -1,8 +1,9 @@
 // Copyright (c) 2019-2020 The Zcash developers
+// Copyright (c) 2025 Juno Cash developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-// Package parser deserializes blocks from zcashd.
+// Package parser deserializes blocks from the Juno Cash node.
 package parser
 
 import (
@@ -70,13 +71,20 @@ func (b *Block) GetDisplayPrevHashString() string {
 	return hash32.Encode(hash32.Reverse(b.hdr.RawBlockHeader.HashPrevBlock))
 }
 
-// HasSaplingTransactions indicates if the block contains any Sapling tx.
-func (b *Block) HasSaplingTransactions() bool {
+// HasShieldedTransactions indicates if the block contains any shielded tx.
+// Juno Cash: Only Orchard transactions are shielded.
+func (b *Block) HasShieldedTransactions() bool {
 	for _, tx := range b.vtx {
 		if tx.HasShieldedElements() {
 			return true
 		}
 	}
+	return false
+}
+
+// HasSaplingTransactions is deprecated, use HasShieldedTransactions.
+// Juno Cash: Always returns false (Sapling not supported).
+func (b *Block) HasSaplingTransactions() bool {
 	return false
 }
 
@@ -117,24 +125,27 @@ func (b *Block) GetPrevHash() hash32.T {
 }
 
 // ToCompact returns the compact representation of the full block.
+// Juno Cash: SaplingCommitmentTreeSize is always 0.
 func (b *Block) ToCompact() *walletrpc.CompactBlock {
 	compactBlock := &walletrpc.CompactBlock{
 		//TODO ProtoVersion: 1,
-		Height:        uint64(b.GetHeight()),
-		PrevHash:      hash32.ToSlice(b.hdr.HashPrevBlock),
-		Hash:          hash32.ToSlice(b.GetEncodableHash()),
-		Time:          b.hdr.Time,
-		ChainMetadata: &walletrpc.ChainMetadata{},
+		Height:   uint64(b.GetHeight()),
+		PrevHash: hash32.ToSlice(b.hdr.HashPrevBlock),
+		Hash:     hash32.ToSlice(b.GetEncodableHash()),
+		Time:     b.hdr.Time,
+		ChainMetadata: &walletrpc.ChainMetadata{
+			SaplingCommitmentTreeSize: 0, // Juno Cash: Sapling not supported
+		},
 	}
 
-	// Only Sapling transactions have a meaningful compact encoding
-	saplingTxns := make([]*walletrpc.CompactTx, 0, len(b.vtx))
+	// Only shielded (Orchard) transactions have a meaningful compact encoding
+	shieldedTxns := make([]*walletrpc.CompactTx, 0, len(b.vtx))
 	for idx, tx := range b.vtx {
 		if tx.HasShieldedElements() {
-			saplingTxns = append(saplingTxns, tx.ToCompact(idx))
+			shieldedTxns = append(shieldedTxns, tx.ToCompact(idx))
 		}
 	}
-	compactBlock.Vtx = saplingTxns
+	compactBlock.Vtx = shieldedTxns
 	return compactBlock
 }
 

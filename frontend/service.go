@@ -1,8 +1,10 @@
 // Copyright (c) 2019-2020 The Zcash developers
+// Copyright (c) 2025 Juno Cash developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
 // Package frontend implements the gRPC handlers called by the wallets.
+// Juno Cash: Orchard-only, no Sapling or Sprout support.
 package frontend
 
 import (
@@ -89,10 +91,11 @@ func (s *lwdStreamer) GetLatestBlock(ctx context.Context, placeholder *walletrpc
 	return r, nil
 }
 
-// GetTaddressTxids is a streaming RPC that returns transactions that have
+// GetTaddressTransactions is a streaming RPC that returns transactions that have
 // the given transparent address (taddr) as either an input or output.
-// NB, this method is misnamed, it does not return txids.
+// DEPRECATED for Juno Cash: Transparent addresses only used for mining/coinbase.
 func (s *lwdStreamer) GetTaddressTransactions(addressBlockFilter *walletrpc.TransparentAddressBlockFilter, resp walletrpc.CompactTxStreamer_GetTaddressTransactionsServer) error {
+	common.Log.Warnf("DEPRECATED: GetTaddressTransactions called - transparent addresses only for mining/coinbase")
 	common.Log.Debugf("gRPC GetTaddressTransactions(%+v)\n", addressBlockFilter)
 	if err := checkTaddress(addressBlockFilter.Address); err != nil {
 		// This returns a gRPC-compatible error.
@@ -155,11 +158,10 @@ func (s *lwdStreamer) GetTaddressTransactions(addressBlockFilter *walletrpc.Tran
 	return nil
 }
 
-// This method is deprecated; use GetTaddressTransactions instead. The two functions have the
-// same functionality, but the name GetTaddressTxids is misleading, because the method returns
-// transactions, not transaction IDs (txids). See https://github.com/zcash/lightwalletd/issues/426
+// GetTaddressTxids is deprecated; use GetTaddressTransactions instead.
+// DEPRECATED for Juno Cash: Transparent addresses only used for mining/coinbase.
 func (s *lwdStreamer) GetTaddressTxids(addressBlockFilter *walletrpc.TransparentAddressBlockFilter, resp walletrpc.CompactTxStreamer_GetTaddressTxidsServer) error {
-	common.Log.Debugf("gRPC GetTaddressTxids, deprecated, calling GetTaddressTransactions...\n")
+	common.Log.Warnf("DEPRECATED: GetTaddressTxids called - transparent addresses only for mining/coinbase")
 	return s.GetTaddressTransactions(addressBlockFilter, resp)
 }
 
@@ -284,17 +286,14 @@ func (s *lwdStreamer) GetBlockRangeNullifiers(span *walletrpc.BlockRange, resp w
 }
 
 // GetTreeState returns the note commitment tree state corresponding to the given block.
-// See section 3.7 of the Zcash protocol specification. It returns several other useful
-// values also (even though they can be obtained using GetBlock).
+// Juno Cash: SaplingTree is always empty (Sapling not supported).
 // The block can be specified by either height or hash.
 func (s *lwdStreamer) GetTreeState(ctx context.Context, id *walletrpc.BlockID) (*walletrpc.TreeState, error) {
 	if id.Height == 0 && id.Hash == nil {
 		return nil, status.Error(codes.InvalidArgument,
 			"GetTreeState: must specify a block height or ID (hash)")
 	}
-	// The Zcash z_gettreestate rpc accepts either a block height or block hash
 	params := make([]json.RawMessage, 1)
-	var hashJSON []byte
 	if id.Height > 0 {
 		heightJSON, err := json.Marshal(strconv.Itoa(int(id.Height)))
 		if err != nil {
@@ -315,40 +314,27 @@ func (s *lwdStreamer) GetTreeState(ctx context.Context, id *walletrpc.BlockID) (
 		params[0] = hashJSON
 	}
 	var gettreestateReply common.ZcashdRpcReplyGettreestate
-	for {
-		result, rpcErr := common.RawRequest("z_gettreestate", params)
-		if rpcErr != nil {
-			return nil, status.Errorf(codes.InvalidArgument,
-				"GetTreeState: z_gettreestate failed: %s", rpcErr.Error())
-		}
-		err := json.Unmarshal(result, &gettreestateReply)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument,
-				"GetTreeState: cannot marshal treestate: %s", err.Error())
-		}
-		if gettreestateReply.Sapling.Commitments.FinalState != "" {
-			break
-		}
-		if gettreestateReply.Sapling.SkipHash == "" {
-			break
-		}
-		hashJSON, err = json.Marshal(gettreestateReply.Sapling.SkipHash)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument,
-				"GetTreeState: cannot marshal SkipHash: %s", err.Error())
-		}
-		params[0] = hashJSON
+	result, rpcErr := common.RawRequest("z_gettreestate", params)
+	if rpcErr != nil {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"GetTreeState: z_gettreestate failed: %s", rpcErr.Error())
 	}
-	if gettreestateReply.Sapling.Commitments.FinalState == "" {
+	err := json.Unmarshal(result, &gettreestateReply)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"GetTreeState: cannot marshal treestate: %s", err.Error())
+	}
+	// Juno Cash: Only require Orchard tree state
+	if gettreestateReply.Orchard.Commitments.FinalState == "" {
 		return nil, status.Error(codes.InvalidArgument,
-			"GetTreeState: z_gettreestate did not return treestate")
+			"GetTreeState: z_gettreestate did not return Orchard treestate")
 	}
 	r := &walletrpc.TreeState{
 		Network:     s.chainName,
 		Height:      uint64(gettreestateReply.Height),
 		Hash:        gettreestateReply.Hash,
 		Time:        gettreestateReply.Time,
-		SaplingTree: gettreestateReply.Sapling.Commitments.FinalState,
+		SaplingTree: "", // Juno Cash: Sapling not supported
 		OrchardTree: gettreestateReply.Orchard.Commitments.FinalState,
 	}
 	common.Log.Tracef("  return: %+v\n", r)
@@ -516,7 +502,9 @@ func getTaddressBalanceZcashdRpc(addressList []string) (*walletrpc.Balance, erro
 }
 
 // GetTaddressBalance returns the total balance for a list of taddrs
+// DEPRECATED for Juno Cash: Transparent addresses only used for mining/coinbase.
 func (s *lwdStreamer) GetTaddressBalance(ctx context.Context, addresses *walletrpc.AddressList) (*walletrpc.Balance, error) {
+	common.Log.Warnf("DEPRECATED: GetTaddressBalance called - transparent addresses only for mining/coinbase")
 	common.Log.Debugf("gRPC GetTaddressBalance(%+v)\n", addresses)
 	r, err := getTaddressBalanceZcashdRpc(addresses.Addresses)
 	if err == nil {
@@ -526,7 +514,9 @@ func (s *lwdStreamer) GetTaddressBalance(ctx context.Context, addresses *walletr
 }
 
 // GetTaddressBalanceStream returns the total balance for a list of taddrs
+// DEPRECATED for Juno Cash: Transparent addresses only used for mining/coinbase.
 func (s *lwdStreamer) GetTaddressBalanceStream(addresses walletrpc.CompactTxStreamer_GetTaddressBalanceStreamServer) error {
+	common.Log.Warnf("DEPRECATED: GetTaddressBalanceStream called - transparent addresses only for mining/coinbase")
 	common.Log.Debugf("gRPC GetTaddressBalanceStream(%+v)\n", addresses)
 	addressList := make([]string, 0)
 	for {
@@ -782,7 +772,10 @@ func getAddressUtxos(arg *walletrpc.GetAddressUtxosArg, f func(*walletrpc.GetAdd
 	return nil
 }
 
+// GetAddressUtxos returns UTXOs for the given addresses.
+// DEPRECATED for Juno Cash: Transparent addresses only used for mining/coinbase.
 func (s *lwdStreamer) GetAddressUtxos(ctx context.Context, arg *walletrpc.GetAddressUtxosArg) (*walletrpc.GetAddressUtxosReplyList, error) {
+	common.Log.Warnf("DEPRECATED: GetAddressUtxos called - transparent addresses only for mining/coinbase")
 	common.Log.Debugf("gRPC GetAddressUtxos(%+v)\n", arg)
 	addressUtxos := make([]*walletrpc.GetAddressUtxosReply, 0)
 	err := getAddressUtxos(arg, func(utxo *walletrpc.GetAddressUtxosReply) error {
@@ -804,6 +797,9 @@ func (s *lwdStreamer) GetSubtreeRoots(arg *walletrpc.GetSubtreeRootsArg, resp wa
 	}
 	switch arg.ShieldedProtocol {
 	case walletrpc.ShieldedProtocol_sapling:
+		// Juno Cash: Sapling not supported, return empty
+		common.Log.Debugf("GetSubtreeRoots: Sapling not supported, returning empty")
+		return nil
 	case walletrpc.ShieldedProtocol_orchard:
 		break
 	default:
@@ -867,7 +863,10 @@ func (s *lwdStreamer) GetSubtreeRoots(arg *walletrpc.GetSubtreeRootsArg, resp wa
 	return nil // success
 }
 
+// GetAddressUtxosStream streams UTXOs for the given addresses.
+// DEPRECATED for Juno Cash: Transparent addresses only used for mining/coinbase.
 func (s *lwdStreamer) GetAddressUtxosStream(arg *walletrpc.GetAddressUtxosArg, resp walletrpc.CompactTxStreamer_GetAddressUtxosStreamServer) error {
+	common.Log.Warnf("DEPRECATED: GetAddressUtxosStream called - transparent addresses only for mining/coinbase")
 	common.Log.Debugf("gRPC GetAddressUtxosStream(%+v)\n", arg)
 	err := getAddressUtxos(arg, func(utxo *walletrpc.GetAddressUtxosReply) error {
 		return resp.Send(utxo)

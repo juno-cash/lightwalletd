@@ -1,3 +1,9 @@
+// Copyright (c) 2019-2020 The Zcash developers
+// Copyright (c) 2025 Juno Cash developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or https://www.opensource.org/licenses/mit-license.php .
+
+// Juno Cash: Orchard-only, no Sapling or Sprout support.
 package common
 
 import (
@@ -31,6 +37,7 @@ type darksideState struct {
 	latestHeight int
 
 	// Size of the Sapling commitment tree as of `startHeight - 1`.
+	// Juno Cash: Always 0 (Sapling not supported).
 	startSaplingTreeSize uint32
 	// Size of the Orchard commitment tree as of `startHeight - 1`.
 	startOrchardTreeSize uint32
@@ -77,13 +84,13 @@ var mutex sync.Mutex
 
 type activeBlock struct {
 	bytes           []byte
-	saplingTreeSize uint32
+	saplingTreeSize uint32 // Juno Cash: Always 0 (Sapling not supported)
 	orchardTreeSize uint32
 }
 
 type stagedTx struct {
 	height         int
-	saplingOutputs int
+	saplingOutputs int // Juno Cash: Always 0 (Sapling not supported)
 	orchardActions int
 	bytes          []byte
 }
@@ -93,7 +100,7 @@ type DarksideTreeState struct {
 	Height      uint64
 	Hash        string
 	Time        uint32
-	SaplingTree string
+	SaplingTree string // Juno Cash: Always empty (Sapling not supported)
 	OrchardTree string
 }
 
@@ -142,7 +149,7 @@ func DarksideInit(c *BlockCache, timeout int) {
 // DarksideReset allows the wallet test code to specify values
 // that are returned by GetLightdInfo().
 func DarksideReset(sa int, bi, cn string, sst, sot uint32) error {
-	Log.Info("DarksideReset(saplingActivation=", sa, ")")
+	Log.Info("DarksideReset(orchardActivation=", sa, ")")
 	mutex.Lock()
 	defer mutex.Unlock()
 	stopIngestor()
@@ -185,15 +192,12 @@ func addBlockActive(blockBytes []byte) error {
 	}
 	if blockHeight < state.startHeight {
 		return errors.New(fmt.Sprint("adding block at height ", blockHeight,
-			" is lower than Sapling activation height ", state.startHeight))
+			" is lower than activation height ", state.startHeight))
 	}
 	// Determine the Sapling and Orchard commitment tree sizes for the new block.
+	// Juno Cash: Sapling always returns 0.
 	countSaplingOutputs := func(block *parser.Block) uint32 {
-		var count = 0
-		for _, tx := range block.Transactions() {
-			count += tx.SaplingOutputsCount()
-		}
-		return uint32(count)
+		return 0 // Juno Cash: Sapling not supported
 	}
 	countOrchardActions := func(block *parser.Block) uint32 {
 		var count = 0
@@ -259,7 +263,7 @@ func DarksideApplyStaged(height int) error {
 	Log.Info("DarksideApplyStaged(height=", height, ")")
 	if height < state.startHeight {
 		return errors.New(fmt.Sprint("height ", height,
-			" is less than sapling activation height ", state.startHeight))
+			" is less than activation height ", state.startHeight))
 	}
 	// Move the staged blocks into active list
 	stagedBlocks := state.stagedBlocks
@@ -363,7 +367,7 @@ func darksideStageBlock(caller string, b []byte) error {
 	Log.Info(caller, "DarksideStageBlock(height=", block.GetHeight(), ")")
 	if block.GetHeight() < state.startHeight {
 		return errors.New(fmt.Sprint("block height ", block.GetHeight(),
-			" is less than sapling activation height ", state.startHeight))
+			" is less than activation height ", state.startHeight))
 	}
 	state.stagedBlocks = append(state.stagedBlocks, b)
 	return nil
@@ -543,7 +547,7 @@ func darksideRawRequest(method string, params []json.RawMessage) (json.RawMessag
 			}
 			if height < state.startHeight {
 				return nil, errors.New(fmt.Sprint("getblock: requesting height ", height,
-					" is less than sapling activation height"))
+					" is less than activation height"))
 			}
 			blockIndex = height - state.startHeight
 			if blockIndex >= len(state.activeBlocks) {
